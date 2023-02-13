@@ -19,6 +19,7 @@ function cecho() {
   fi
 }
 
+# Instruct for requirements and wait for confirmation then check device
 function check_adb_connection() {
   cecho "Please enable developer options on your device, connect it to your computer and set it to file transfer mode. Then, press Enter to continue."
   wait_for_enter
