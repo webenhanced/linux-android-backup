@@ -6,10 +6,11 @@
     <uses-permission android:maxSdkVersion="29" android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
     
     <application
         android:requestLegacyExternalStorage="true"
-        android:label="Linux Android Backup Companion"
+        android:label="Open Android Backup Companion"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
