@@ -5,7 +5,7 @@ set -e
 # This is used to download a stable, compatible version of the Android companion app as well as ensure backwards compatibility,
 # so it should match the tag name in GitHub Releases.
 # TODO: load this dynamically, i.e. configure our build system to automatically update the APP_VERSION
-APP_VERSION="v1.0.14"
+APP_VERSION="v1.0.15"
 
 # We use whiptail for showing dialogs.
 # Whiptail is used similarly as dialog, but we can't install it on macOS using Homebrew IIRC.
@@ -29,9 +29,15 @@ else
   fi
 fi
 
-# Check if other dependencies are installed: adb, tar, pv, 7z
+# Check if other dependencies are installed: adb, tar, pv, 7z, bc
 # srm is optional so we don't check for it
-commands=("tar" "pv" "7z" "adb")
+commands=("tar" "pv" "7z" "adb" "bc")
+
+# Add kdialog to the list of commands if we're running in WSL
+if [ "$(uname -r | sed -n 's/.*\( *Microsoft *\).*/\1/ip')" ]; then
+  commands+=("kdialog")
+fi
+
 for cmd in "${commands[@]}"
 do
   # adb is a function in WSL so we're using type instead of command -v
@@ -55,6 +61,12 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 # Load all functions in ./functions
 for f in "$DIR"/functions/*.sh; do source "$f"; done
+
+# Ensure that there's enough space on the device
+# TODO: Check this based on the size of the backup (or the device's storage capacity) instead of a hardcoded value of 100GB
+if ! enough_free_space "."; then
+  cecho "Less than 100GB of free space available on the current directory. You may encounter issues if working with large backups."
+fi
 
 check_adb_connection
 
