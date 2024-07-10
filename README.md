@@ -14,7 +14,7 @@ Open Android Backup is a tiny shell script & Flutter app that makes securely bac
 
 The following data types can be automatically restored back to the device.
 
-- Apps (.apk files of installed apps - app data not included - split APK support is experimental and can be found in the `split-apk-support` branch)
+- Apps (app data not included due to system limitations)
 - Internal storage (pictures, downloads, videos, Signal backups if enabled, etc)
 - Contacts (exported in vCard format)
 
@@ -33,16 +33,17 @@ These things are the majority of what most people would want to keep safe, but e
 - Works on the 3 major operating systems, and supports *any* modern Android device.
 - Wireless backups that allow you to normally use your phone while it's being backed up.
 - Backs up data not normally accessible through ADB using a native companion app.
-- Tiny - the script is 5KB in size, and the companion app is around 15 megabytes.
+- Tiny - the whole package is about 20 MB.
 - Doesn't use proprietary formats - your data is safe even if you can't run the script. Simply open archives created by this script using 7-Zip.
 - Backups are encrypted along with their metadata.
 - Optionally securely erases all unencrypted temporary files created by the script.
-- All data is compressed using 7-Zip with maximum compression settings.
+- All data is compressed using 7-Zip with configurable compression settings.
+
 ## Installation
 
 ### Linux
 
-1. Install p7zip, adb, curl, whiptail, pv, bc and optionally secure-delete. If you're on Debian or Ubuntu, run this command: `sudo apt update; sudo apt install p7zip-full adb curl whiptail pv bc secure-delete`.
+1. Install p7zip, adb, curl, whiptail, pv, bc plus optionally secure-delete and zenity. If you're on Debian or Ubuntu, run this command: `sudo apt update; sudo apt install p7zip-full adb curl whiptail pv bc secure-delete zenity`.
 On Fedora enable the RPM Sphere repo using instructions from here: https://rpmsphere.github.io/
 then execute this command `sudo dnf install p7zip p7zip-plugins adb curl newt pv secure-delete`
 2. [Download](https://github.com/mrrfv/open-android-backup/releases/latest) the Open Android Backup bundle, which contains the script and companion app in one package. You can also grab an experimental build (heavily discouraged) by clicking on [this link](https://github.com/mrrfv/open-android-backup/archive/refs/heads/master.zip) or cloning.
@@ -50,9 +51,9 @@ then execute this command `sudo dnf install p7zip p7zip-plugins adb curl newt pv
 
 ### macOS
 
-**Warning:** I've recently switched to an AMD CPU+NVIDIA GPU rig, making it impossible for me to test this script on macOS without buying a Mac. Whilst there is nothing that could prevent this script from running on macOS, you are on your own and support will be very limited. (script last tested on Janurary 11th 2023)
+Warning: macOS testing is limited, please report any issues you encounter.
 
-1. Install p7zip and adb using [Homebrew](https://brew.sh/):
+1. Install dependencies using [Homebrew](https://brew.sh/):
 
 ```bash
 # Tip: Run these commands in the built-in Terminal app (or iTerm if you have that installed).
@@ -60,7 +61,7 @@ then execute this command `sudo dnf install p7zip p7zip-plugins adb curl newt pv
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 # If you already have Homebrew installed, just run these 2 commands:
 brew install --cask android-platform-tools
-brew install p7zip pv bash dialog
+brew install p7zip pv bash dialog coreutils
 ```
 
 2. Follow the steps 2 and 3 from the install guide for Linux.
@@ -68,13 +69,13 @@ brew install p7zip pv bash dialog
 ### Windows
 
 1. Install the [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/install#install), a compatibility layer allowing you to run Linux applications (such as this one) on Windows. You only need to follow the `Install` step.
-2. [Download](https://github.com/mrrfv/open-android-backup/releases/latest) the Open Android Backup bundle, which contains the script and companion app in one package. You can also grab an experimental build (heavily discouraged) by clicking on [this link](https://github.com/mrrfv/open-android-backup/archive/refs/heads/master.zip) or cloning.
-3. Open the repository in the file explorer. Right click on a file called `backup-windows.ps1`, and click on "Run with PowerShell". **IMPORTANT: If you see an error after running the script, search for "Developer Settings" in the Settings app, and apply the settings related to PowerShell.**
+2. [Download](https://github.com/mrrfv/open-android-backup/releases/latest) the Open Android Backup bundle, which contains the script and companion app in one package. You can also grab an experimental build (heavily discouraged) by clicking on [this link](https://github.com/mrrfv/open-android-backup/archive/refs/heads/master.zip) or cloning the repository.
+3. Open the unzipped folder in the File Explorer. Right click on a file called `backup-windows.ps1`, and click on "Run with PowerShell". **IMPORTANT: If you see an error after running the script, search for "Developer Settings" in the Settings app, and apply the settings related to PowerShell. You may also have to open the file's Properties and ensure "Unblock" is checked next to "Security".**
 
 ![Powershell Developer Settings](.github/images/windows-powershell-developer-settings.png)
 ## Usage
 
-Just run `backup.sh` and the script will walk you through the process. This section covers advanced usage of this program.
+Just run `backup.sh` (or `backup-windows.ps1` on Windows) and the script will walk you through the process. This section covers advanced usage of this program.
 
 ### Hooks
 
@@ -117,7 +118,7 @@ You need 3 functions in your hook for it to be properly initialized by the scrip
 
 Please keep in mind that this project has minimal support for automation and very little support will be provided. In order to export contacts, you still need to have physical access to the device you're backing up as an "unattended mode" for the companion app hasn't been implemented yet.
 
-There are 9 environment variables that control what the script does without user input:
+There are 10 environment variables that control what the script does without user input:
 
 1. `unattended_mode` - Instead of waiting for a key press, sleeps for 5 seconds. Can be any value.
 2. `selected_action` - What the script should do when run. Possible values are `Backup` and `Restore` (case sensitive).
@@ -128,6 +129,7 @@ There are 9 environment variables that control what the script does without user
 7. `use_hooks` - Whether to use hooks or not. Possible values are `yes` or `no` (case sensitive).
 8. `data_erase_choice` - Whether to securely erase temporary files or not. Possible values are `Fast`, `Slow` and `Extra Slow` (case sensitive). The value of this variable is ignored if the command `srm` isn't present on your computer.
 9. `discouraged_disable_archive` - Disables the creation of a backup archive, only creates a backup *directory* with no compression, encryption or other features. This is not recommended, although some may find it useful to deduplicate backups and save space. Restoring backups created with this option enabled is not supported by default; you must manually create an archive from the backup directory and then restore it. Possible values are `yes` or `no` (case sensitive).
+10. `compression_level` - One of 0, 1, 3, 5, 7, 9. Where 9 is the best an slowest copression and 0 is no compression and the fastest level. If most of your data is already compressed, for example jpg pictures or mp3 videos, you will not loose much volume by compressing it. 
 
 Examples:
 
@@ -140,27 +142,9 @@ $ archive_password="456" ./backup.sh
 
 ## Convenience Script
 
-If you'd like to quickly run the latest version of Open Android Backup without having to follow the usage instructions, you can use the convenience script. It's a **work in progress**, but it should work on most systems.
+The `get.openandroidbackup.me` convenience script is deprecated starting January 1st 2024 due to potential security implications associated with running unverified code from the internet as well as its limited support for various system configurations. Please use the official usage instructions instead.
 
-Please note that there are **security risks** associated with running scripts from the internet. It's recommended that you review the script before running it. If you don't trust me or Cloudflare, you can always download the script and run it manually.
-
-### Linux or macOS
-
-Run the following command in your terminal:
-
-```bash
-curl -fsSL get.openandroidbackup.me | bash
-```
-
-### Windows
-
-Run the following command in PowerShell:
-
-```powershell
-irm https://get.openandroidbackup.me/ | iex
-```
-
-The same path is used because the server automatically detects your operating system based on the user agent and serves the correct script.
+Removal of the script is planned for April 2024, although it may stay up for longer if it's still being used by a significant number of people.
 
 ## Building companion app
 

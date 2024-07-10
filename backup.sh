@@ -5,7 +5,7 @@ set -e
 # This is used to download a stable, compatible version of the Android companion app as well as ensure backwards compatibility,
 # so it should match the tag name in GitHub Releases.
 # TODO: load this dynamically, i.e. configure our build system to automatically update the APP_VERSION
-APP_VERSION="v1.0.15"
+APP_VERSION="v1.0.18"
 
 # We use whiptail for showing dialogs.
 # Whiptail is used similarly as dialog, but we can't install it on macOS using Homebrew IIRC.
@@ -29,13 +29,21 @@ else
   fi
 fi
 
-# Check if other dependencies are installed: adb, tar, pv, 7z, bc
+# Check if other dependencies are installed: adb, tar, pv, 7z, bc, timeout
 # srm is optional so we don't check for it
 commands=("tar" "pv" "7z" "adb" "bc")
 
-# Add kdialog to the list of commands if we're running in WSL
+# Add zenity to the list of commands if we're running in WSL
 if [ "$(uname -r | sed -n 's/.*\( *Microsoft *\).*/\1/ip')" ]; then
-  commands+=("kdialog")
+  commands+=("zenity")
+fi
+
+# Add gtimeout to the list of commands if we're running on macOS
+if [ "$(uname)" = "Darwin" ]; then
+  commands+=("gtimeout")
+else
+  # For the rest of the systems, we use the standard timeout command
+  commands+=("timeout")
 fi
 
 for cmd in "${commands[@]}"
@@ -65,7 +73,7 @@ for f in "$DIR"/functions/*.sh; do source "$f"; done
 # Ensure that there's enough space on the device
 # TODO: Check this based on the size of the backup (or the device's storage capacity) instead of a hardcoded value of 100GB
 if ! enough_free_space "."; then
-  cecho "Less than 100GB of free space available on the current directory. You may encounter issues if working with large backups."
+  cecho "Less than 100GB of free space available in the current directory. You may encounter issues if working with large backups."
 fi
 
 check_adb_connection
@@ -91,6 +99,22 @@ if [ ! -v export_method ]; then
 
   export_methods=( 'tar' 'adb' )
   select_option_from_list "Choose the exporting method." export_methods[@] export_method
+fi
+
+clear
+
+if [ ! -v compression_level ]; then
+  cecho "Choose the compression level."
+  cecho "- 0 is no compression, and is the fastest."
+  cecho "- 3 is fast compression."
+  cecho "- 5 is normal compression, which is a balance between speed and file size."
+  cecho "- 7 is maximum compression, it was the previous default."
+  cecho "- 9 is the slowest, but provides the best compression."
+  cecho "Press Enter to pick your preferred compression level."
+  wait_for_enter
+
+  compression_levels=( '0' '1' '3' '5' '7' '9' )
+  select_option_from_list "Choose the compression level" compression_levels[@] compression_level
 fi
 
 clear

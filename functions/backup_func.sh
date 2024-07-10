@@ -4,18 +4,26 @@
 function backup_func() {
   while true; do
   if [ ! -v archive_path ]; then
-  # Check if we're running on Windows.
-  # If we are, then we will open a file chooser instead of asking the user for the file path thru CLI
-  # due to compatibility issues.
-  # TODO: also do this on Linux if KDialog is available
-  if [ "$(uname -r | sed -n 's/.*\( *Microsoft *\).*/\1/ip')" ];
+  # Ask the user for the backup location
+  # If zenity is available, we'll use it to show a graphical directory chooser
+  # TODO: Extract this into a function since similar code is used when restoring
+  if command -v zenity >/dev/null 2>&1 && { [ "$(uname -r | sed -n 's/.*\( *Microsoft *\).*/\1/ip')" ] || [ -z "$XDG_DATA_DIRS" ]; } ;
   then
-    cecho "Running on Windows (WSL) - a graphical file chooser dialog will be open."
+    cecho "A graphical directory chooser dialog will be open."
     cecho "You will be prompted for the backup location. Press Enter to continue."
     wait_for_enter
-    archive_path=$(kdialog --getexistingdirectory /mnt/c 2>/dev/null | tail -n 1 | sed 's/\r$//' || true)
+
+    # Dynamically set the default directory based on the operating system
+    zenity_backup_default_dir="$HOME"
+    if [ "$(uname -r | sed -n 's/.*\( *Microsoft *\).*/\1/ip')" ]; then
+      zenity_backup_default_dir="/mnt/c/Users"
+    fi
+
+    archive_path=$(zenity --file-selection --title="Choose the backup location" --directory --filename="$zenity_backup_default_dir" 2>/dev/null | tail -n 1 | sed 's/\r$//' || true)
   else
+    # Fall back to the CLI if zenity isn't available (e.g. on macOS)
     get_text_input "Enter the backup location. Press Ok for the current working directory." archive_path "$(pwd)"
+    cecho "Install zenity to use a graphical directory chooser."
   fi
 
   fi
@@ -31,27 +39,38 @@ function backup_func() {
   # Export apps (.apk files)
   cecho "Exporting apps."
   mkdir -p backup-tmp/Apps
+  app_count=$(adb shell pm list packages -3 -f | wc -l)
+  apps_exported=0
+
   for app in $(adb shell pm list packages -3 -f)
   #   -f: see their associated file
   #   -3: filter to only show third party packages
   do
-  declare output=backup-tmp/Apps
-  (
-    apk_path=${app%=*}                                  # apk path on device
-    apk_path=${apk_path/package:}                       # strip "package:"
-    apk_clean_name=$(echo "$app" | awk -F "=" '{print $NF}' | tr -dc '[:alnum:].' | tr '[:upper:]' '[:lower:]') # package name
-    apk_base="$apk_clean_name-$RANDOM$RANDOM.apk"  # apk filename in the backup archive
-    # e.g.:
-    # app=package:/data/app/~~4wyPu0QoTM3AByZS==/org.fdroid.fdroid-iaTC9-W1lyR1FxO==/base.apk=org.fdroid.fdroid
-    # apk_path=/data/app/~~4wyPu0QoTM3AByZS==/org.fdroid.fdroid-iaTC9-W1lyR1FxO==/base.apk
-    # apk_clean_name=org.fdroid.fdroid
-    # apk_base=org.fdroid.fdroid-123456.apk
-    
-    echo "Backing up app: $apk_clean_name"
+    # Increment the amount of apps exported
+    apps_exported=$((apps_exported+1))
+    #output=backup-tmp/Apps
+    (
+      apk_path=${app%=*}                                  # apk path on device
+      apk_path=${apk_path/package:}                       # strip "package:"
+      apk_clean_name=$(echo "$app" | awk -F "=" '{print $NF}' | tr -dc '[:alnum:]_.') # package name
+      #apk_base="$apk_clean_name-$RANDOM$RANDOM"  # apk filename in the backup archive. Unused, removal pending?
+      # e.g.:
+      # app=package:/data/app/~~4wyPu0QoTM3AByZS==/org.fdroid.fdroid-iaTC9-W1lyR1FxO==/base.apk=org.fdroid.fdroid
+      # apk_path=/data/app/~~4wyPu0QoTM3AByZS==/org.fdroid.fdroid-iaTC9-W1lyR1FxO==/base.apk
+      # apk_clean_name=org.fdroid.fdroid
+      # apk_base=org.fdroid.fdroid-123456.apk
+      
+      echo "Backing up app: $apk_clean_name ($apps_exported/$app_count)"
 
-    get_file "$(dirname "$apk_path")" "$(basename "$apk_path")" ./backup-tmp/Apps
-    mv "./backup-tmp/Apps/$(basename "$apk_path")" "./backup-tmp/Apps/$apk_base" || cecho "Couldn't find app $(basename "$apk_path") after exporting from device - ignoring." 1>&2
-  )
+      # Get all the APKs associated with the package name, including split APKs
+      # TODO: Ensure the changes made to apk_clean_name don't break this under certain conditions
+      for apk in $(adb shell pm path "$apk_clean_name" | sed 's/package://g' | tr -d '\r'); do
+        # Create a directory for the app to store all the APKs
+        mkdir -p ./backup-tmp/Apps/"$apk_clean_name"
+        # Save the APK to its directory
+        get_file "$(dirname "$apk")" "$(basename "$apk")" ./backup-tmp/Apps/"$apk_clean_name"
+      done
+    )
   done
 
   # Export contacts and SMS messages
@@ -122,7 +141,7 @@ function backup_func() {
     # -bb3: verbose logging
     # The undefined variable (archive_password) is set by the user if they're using unattended mode
     declare backup_archive="$archive_path/open-android-backup-$(date +%m-%d-%Y-%H-%M-%S).7z"
-    retry 5 7z a -p"$archive_password" -mhe=on -mx=7 -bb3 "$backup_archive" backup-tmp/*
+    retry 5 7z a -p"$archive_password" -mhe=on -mx=$compression_level -bb3 "$backup_archive" backup-tmp/*
   fi
 
   # We're not using 7-Zip's -sdel option (delete files after compression) to honor the user's choice to securely delete temporary files after a backup

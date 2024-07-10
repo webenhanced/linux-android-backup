@@ -7,13 +7,15 @@ Write-Output "Warning: WSL 2 is required. WSL will be updated to fix potential i
 Write-Output "For more information, see here: https://github.com/microsoft/wslg#install-instructions-existing-wsl-install"
 Write-Output ""
 pause
+# Corrects the cwd if it's different than the script directory
+Set-Location -Path $PSScriptRoot
 Write-Output "Updating WSL..."
 wsl --update
 wsl --shutdown
 wsl sudo apt update
 wsl sudo apt dist-upgrade -y
 Write-Output "Installing dependencies and setting up environment..."
-wsl sudo apt install p7zip-full secure-delete whiptail curl dos2unix pv kdialog '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev -y
+wsl sudo apt install p7zip-full secure-delete whiptail curl dos2unix pv bc zenity '^libxcb.*-dev' libx11-xcb-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev -y
 Write-Output "Converting files - this may take several minutes..."
 wsl bash -c "sudo find ./ -name '*.sh' -type f -print0 | sudo xargs -0 dos2unix --"
 Clear-Host
